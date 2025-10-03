@@ -7,7 +7,7 @@ from config import (
 )
 from TGparser import find_solana_contract
 
-# 1. создаём клиента, но НЕ стартуем здесь
+# -------------- клиент-бот --------------
 client = TelegramClient("bot_session", api_id, api_hash)
 
 # -------------- отправка контракта --------------
@@ -18,7 +18,7 @@ async def send_to_wizard(contract: str) -> None:
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
-# -------------- парсер --------------
+# -------------- парсер каналов --------------
 @client.on(events.NewMessage(chats=channel_list))
 async def handler(event):
     contract = find_solana_contract(event.raw_text)
@@ -43,11 +43,13 @@ async def del_ch(event):
 
 @client.on(events.NewMessage(pattern="^/list$", from_users=admin_id))
 async def list_ch(event):
-    await event.reply("📋 Текущие каналы:\n" + "\n".join(channel_list))
+    if not channel_list:
+        await event.reply("📋 Список каналов пуст.")
+        return
+    await event.reply("📋 Текущие каналы:\n" + "\n".join(f"`{ch}`" for ch in map(str, channel_list)))
 
-# -------------- единая точка запуска --------------
+# -------------- запуск --------------
 async def main():
-    # стартуем бота внутри той же корутины
     await client.start(bot_token=bot_token)
     print("🚀 Бот слушает каналы:", ", ".join(map(str, channel_list)))
     await client.run_until_disconnected()
