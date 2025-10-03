@@ -1,33 +1,32 @@
-import asyncio
-import os
+import asyncio, os
 from telethon import TelegramClient, events
 from config import (
-    api_id, api_hash, session_name,
+    api_id, api_hash, session_name, BOT_TOKEN,
     channel_list, ADMIN_USER_ID, save_channels
 )
 from TGparser import find_solana_contract
 
-client = TelegramClient(session_name, api_id, api_hash)
+# ------ бот-сессия ------
+client = TelegramClient(session_name, api_id, api_hash)\
+           .start(bot_token=BOT_TOKEN)
 
-# ---------- отправка контракта ----------
-async def send_to_wizard(contract: str) -> None:
+# ------ отправка контракта ------
+async def send_to_wizard(contract: str):
     try:
         await client.send_message(os.getenv("WIZARD_CHAT_ID"), contract)
         print(f"✅ Отправлен контракт: {contract}")
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
-# ---------- парсер ----------
+# ------ парсер ------
 @client.on(events.NewMessage(chats=channel_list))
 async def handler(event):
-    text = event.raw_text
-    print(f"\n📩 Сообщение из {event.chat.username or event.chat_id}")
-    contract = find_solana_contract(text)
+    contract = find_solana_contract(event.raw_text)
     if contract:
         print(f"✅ Найден контракт: {contract}")
         await send_to_wizard(contract)
 
-# ---------- админ-команды ----------
+# ------ админ-команды боту ------
 @client.on(events.NewMessage(pattern=r"^/add\s+(@?\S+)", from_users=ADMIN_USER_ID))
 async def add_ch(event):
     ch = event.pattern_match.group(1)
@@ -46,10 +45,9 @@ async def del_ch(event):
 async def list_ch(event):
     await event.reply("📋 Текущие каналы:\n" + "\n".join(channel_list))
 
-# ---------- старт ----------
+# ------ старт ------
 async def main():
-    print("🚀 Слушаем каналы:", ", ".join(channel_list))
-    await client.start()
+    print("🚀 Бот слушает каналы:", ", ".join(channel_list))
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
