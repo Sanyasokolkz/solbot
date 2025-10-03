@@ -7,10 +7,8 @@ from config import (
 )
 from TGparser import find_solana_contract
 
-# -------------- клиент-бот --------------
+# 1. создаём клиента, но НЕ стартуем здесь
 client = TelegramClient("bot_session", api_id, api_hash)
-# стартуем строго ботом – phone не спрашивается
-client.start(bot_token=bot_token)
 
 # -------------- отправка контракта --------------
 async def send_to_wizard(contract: str) -> None:
@@ -20,7 +18,7 @@ async def send_to_wizard(contract: str) -> None:
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
-# -------------- парсер каналов --------------
+# -------------- парсер --------------
 @client.on(events.NewMessage(chats=channel_list))
 async def handler(event):
     contract = find_solana_contract(event.raw_text)
@@ -47,8 +45,10 @@ async def del_ch(event):
 async def list_ch(event):
     await event.reply("📋 Текущие каналы:\n" + "\n".join(channel_list))
 
-# -------------- запуск --------------
+# -------------- единая точка запуска --------------
 async def main():
+    # стартуем бота внутри той же корутины
+    await client.start(bot_token=bot_token)
     print("🚀 Бот слушает каналы:", ", ".join(channel_list))
     await client.run_until_disconnected()
 
