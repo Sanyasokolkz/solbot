@@ -49,7 +49,7 @@ async def list_ch(event):
 async def main():
     # стартуем бота внутри той же корутины
     await client.start(bot_token=bot_token)
-    print("🚀 Бот слушает каналы:", ", ".join(channel_list))
+    print("🚀 Бот слушает каналы:", ", ".join(map(str, channel_list)))
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
