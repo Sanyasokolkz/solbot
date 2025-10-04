@@ -2,19 +2,20 @@ import asyncio
 import os
 from telethon import TelegramClient, events
 from config import (
-    api_id, api_hash, bot_token, admin_id,
-    channel_list, save_channels
+    api_id, api_hash, admin_id,
+    channel_list, channel_names, save_channels, save_names
 )
 from TGparser import find_solana_contract
 
-# -------------- клиент-бот --------------
-client = TelegramClient("bot_session", api_id, api_hash)
+# user-session (файл уже восстановлен из base64)
+client = TelegramClient("railway", api_id, api_hash)
 
 # -------------- отправка контракта --------------
-async def send_to_wizard(contract: str) -> None:
+async def send_to_wizard(contract: str, source: str) -> None:
     try:
-        await client.send_message(os.getenv("WIZARD_CHAT_ID"), contract)
-        print(f"✅ Отправлен контракт: {contract}")
+        msg = f"{contract}\n👁️ Источник: {source}"
+        await client.send_message(os.getenv("WIZARD_CHAT_ID"), msg)
+        print(f"✅ Отправлен контракт: {contract}  из {source}")
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
@@ -23,35 +24,43 @@ async def send_to_wizard(contract: str) -> None:
 async def handler(event):
     contract = find_solana_contract(event.raw_text)
     if contract:
-        print(f"✅ Найден контракт: {contract}")
-        await send_to_wizard(contract)
+        source = channel_names.get(event.chat_id, str(event.chat_id))
+        print(f"✅ Найден контракт: {contract}  из {source}")
+        await send_to_wizard(contract, source)
 
 # -------------- админ-команды --------------
-@client.on(events.NewMessage(pattern=r"^/add\s+(@?\S+)", from_users=admin_id))
+@client.on(events.NewMessage(pattern=r"^/add\s+(@?\S+)\s+(.+)", from_users=admin_id))
 async def add_ch(event):
-    ch = event.pattern_match.group(1)
-    if ch not in channel_list:
-        save_channels(channel_list + [ch])
-    await event.reply(f"✅ Добавлен канал {ch}")
+    ident, name = event.pattern_match.group(1, 2)
+    ch_id = int(ident) if ident.isdigit() else (await client.get_entity(ident)).id
+    if ch_id not in channel_list:
+        save_channels(channel_list + [ch_id])
+    channel_names[ch_id] = name
+    save_names(channel_names)
+    await event.reply(f"✅ Добавлен канал {name} (`{ch_id}`)")
 
 @client.on(events.NewMessage(pattern=r"^/del\s+(@?\S+)", from_users=admin_id))
 async def del_ch(event):
-    ch = event.pattern_match.group(1)
-    if ch in channel_list:
-        save_channels([x for x in channel_list if x != ch])
-    await event.reply(f"❌ Удалён канал {ch}")
+    ident = event.pattern_match.group(1)
+    ch_id = int(ident) if ident.isdigit() else (await client.get_entity(ident)).id
+    if ch_id in channel_list:
+        save_channels([x for x in channel_list if x != ch_id])
+        channel_names.pop(ch_id, None)
+        save_names(channel_names)
+    await event.reply(f"❌ Удалён канал `{ch_id}`")
 
 @client.on(events.NewMessage(pattern="^/list$", from_users=admin_id))
 async def list_ch(event):
     if not channel_list:
         await event.reply("📋 Список каналов пуст.")
         return
-    await event.reply("📋 Текущие каналы:\n" + "\n".join(f"`{ch}`" for ch in map(str, channel_list)))
+    text = "\n".join(f"{channel_names.get(ch, ch)}  (`{ch}`)" for ch in channel_list)
+    await event.reply("📋 Текущие каналы:\n" + text)
 
 # -------------- запуск --------------
 async def main():
-    await client.start(bot_token=bot_token)
-    print("🚀 Бот слушает каналы:", ", ".join(map(str, channel_list)))
+    await client.start()                       # user-session, phone не спрашивается
+    print("🚀 User-бот слушает каналы:", ", ".join(map(str, channel_list)))
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
